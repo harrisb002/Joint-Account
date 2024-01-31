@@ -72,10 +72,42 @@ contract BankAccount {
         _;
     }
 
-    //Checks for a sufficient balance before withdraw 
+    //Checks for a sufficient balance before withdraw
     modifier sufficientBalance(uint accountId, uint amount) {
-        require(accounts[accountId].balance >= amount, "Not sufficient balance, tx failed.");
+        require(
+            accounts[accountId].balance >= amount,
+            "Not sufficient balance, tx failed."
+        );
         _;
+    }
+
+    //Must check for prerequisites concerning ability to approve withdrawls being made on given account
+    modifier canApprove(uint accountId, uint withdrawId) {
+        require(
+            accounts[accountId].withdrawRequests[withdrawId].user != msg.sender,
+            "Request has already been approved."
+        );
+        require(
+            !accounts[accountId].withdrawRequest[withdrawId].approve,
+            "Not permitted to approve this request."
+        );
+        require(
+            accounts[accountId].withdrawRequests[withdrawId].user != address(0),
+            "This request has not been created."
+        );
+        require(
+            !accounts[accountId].withdrawRequests[withdrawId].ownersApproved[
+                msg.sender
+            ] != msg.sender,
+            "You've approved this request already."
+        );
+        _;
+    }
+
+    //Prerequisites to withdraw from a given account and withdraw request
+    modifier canWithdraw(uint accountId, uint withdrawId) {
+        require(accounts[accountId].withdrawRequests[withdrawId].user == msg.sender, "You are not the owner of this request.");
+        require(accounts[accountId].withdrawRequests[withdrawId].approved == msg.sender, "This request has not been approved by all owners.");
     }
 
     function deposit(uint accountId) external payable accountOwner(accountId) {
@@ -115,7 +147,7 @@ contract BankAccount {
     function requestWithdawl(
         uint accountId,
         uint amount
-    ) external accountOwner(accountId) sufficientBalance(accountId, amount){
+    ) external accountOwner(accountId) sufficientBalance(accountId, amount) {
         uint id = nextWithdrawId;
         //Create Ref to WithdrawRequest struct and using 'storage' so that it will modify the account struct
         //Store in the account assoc. w/the accountId in the mapping of withdraw requests
@@ -125,13 +157,48 @@ contract BankAccount {
         request.user = msg.sender;
         nextWithdrawId++;
         request.amount = amount;
-        emit WithdrawRequested(msg.sender, accountId, id, amount, block.timestamp);
+        emit WithdrawRequested(
+            msg.sender,
+            accountId,
+            id,
+            amount,
+            block.timestamp
+        );
     }
 
-    function approveWithdrawl(uint accountId, uint withdrawId) external {}
+    function approveWithdrawl(
+        uint accountId,
+        uint withdrawId
+    ) external accountOwner(accountId) canApprove(accountId, withdrawId){
+        WithdrawRequest storage request = accounts[accountId].withdrawRequests[
+            withdrawId
+        ];
+        request.approvals++;
+        request.ownersApproved[msg.sender] = true;
+
+        //Check if marked as approved and if so update accordingly
+        if (request.approvals == accounts[accountId].owners.length - 1) {
+            //If all otherOwners approved request, already given owner of req. approves of it
+            request.approved = true;
+        }
+    }
 
     //Once approved then will be allowed to withdrawl funds
-    function withdraw(uint accountId, uint withdrawId) external {}
+    function withdraw(uint accountId, uint withdrawId) external  {
+        //Must check sufficient balance in account as seperate req. can be made and approved by other owners
+        uint amount = accounts[accountId].withdrawRequests[withdrawId].amount;
+        require(accounts[accountId].balance >= amount, "Insufficient funds.");
+
+        //For security reasons, imp. to subtract amount before using call method.
+        accounts[accountId].balance -= amount;
+        delete accounts[accountId].withdrawRequests[withdrawId]; //Reset all fields to default
+
+        //Make the tx
+        (bool sent, ) = payable(msg.sender).call{value: amount}("");
+        require(sent, "Transaction Failed.");
+
+        emit Withdraw(withdrawId, block.timestamp);
+    }
 
     //Public so one can get the balance within the smart contract as well
     function getBalance(uint accountId) public view returns (uint) {}
