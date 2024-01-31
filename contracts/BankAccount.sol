@@ -43,4 +43,27 @@ contract BankAccount {
     //Incremented upon each account so that each new account has a unique ID
     uint nextAccountId;
     uint nextWithdrawId; 
+
+    function deposit(uint accountId) external payable {}
+
+    //The person who calls this is by default an owner (Hence otherOwners)
+    function createAccount(address[] calldata otherOwners) external {}
+
+    function requestWithdawl(uint accountId, uint amount) external {}
+
+    function approveWithdrawl(uint accountId, uint withdrawId) external {}
+
+    //Once approved then will be allowed to withdrawl funds
+    function withdraw(uint accountId, uint withdrawId) external {}
+
+    //Public so one can get the balance within the smart contract as well
+    function getBalance(uint accountId) public view returns (uint) {}
+
+    //Get all the owners of a specified account
+    function getOwners(uint accountId) public view returns (address[] memory) {}
+
+    //Get the number of approvals for a specified withdraw request
+    function getApprovals(uint accountId, uint withdrawId) public view returns (uint) {}
+
+    function getAccounts() public view returns (uint[] memory) {}
 }
