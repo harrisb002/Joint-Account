@@ -13,7 +13,7 @@ contract BankAccount {
         uint value,
         uint timestamp
     );
-    event WithdrawRequesed(
+    event WithdrawRequested(
         address indexed user,
         uint indexed accountId,
         uint indexed withdrawId,
@@ -38,17 +38,19 @@ contract BankAccount {
     }
 
     mapping(uint => Account) accounts;
-    mapping(address => uint[]) userAccounts;  //Stores the ID's of the user accounts (Need to know the which accounts the user is a owner of)
+    mapping(address => uint[]) userAccounts; //Stores the ID's of the user accounts (Need to know the which accounts the user is a owner of)
 
     //Incremented upon each account so that each new account has a unique ID
     uint nextAccountId;
-    uint nextWithdrawId; 
+    uint nextWithdrawId;
 
     //Must loop through the owners of the account to see if current Id is an owner of account
+    //Used for validating msg.sender is an owner of account
     modifier accountOwner(uint accountId) {
-        bool isOwner; 
+        bool isOwner;
         for (uint idx; idx < accounts[accountId].owners.length; idx++) {
-            if (accounts[accountId].owners[idx] == msg.sender) { //Check if the person sending the tx is an owner
+            if (accounts[accountId].owners[idx] == msg.sender) {
+                //Check if the person sending the tx is an owner
                 isOwner = true;
                 break;
             }
@@ -70,25 +72,35 @@ contract BankAccount {
         _;
     }
 
-    function deposit(uint accountId) external payable {
-        accounts[accountId].balance += msg.value; //Allow the user to make the deposit 
+    //Checks for a sufficient balance before withdraw 
+    modifier sufficientBalance(uint accountId, uint amount) {
+        require(accounts[accountId].balance >= amount, "Not sufficient balance, tx failed.");
+        _;
+    }
+
+    function deposit(uint accountId) external payable accountOwner(accountId) {
+        accounts[accountId].balance += msg.value; //Allow the user to make the deposit
     }
 
     //The person who calls this is by default an owner (Hence otherOwners)
     //Limit of 3 accounts for each owner (Flaws cause others can add you to other accounts)
-    function createAccount(address[] calldata otherOwners) external {
+    function createAccount(
+        address[] calldata otherOwners
+    ) external validOwners(owners) {
         address[] memory owners = new address[](otherOwners.length + 1); //Create an array with all owners (Plus the one creating the tx)
         owners[otherOwners.length] = msg.sender; //Make the owner of the tx the last element of the array
-        
-        uint id = nextAccountId; 
+
+        uint id = nextAccountId;
 
         //Loop through and make sure no-one has 3 accounts already (revert if so)
         for (uint idx; idx < owners.length; idx++) {
-            if (idx < owners.length - 1) { // -1 to not include the owner of tx that has already been added
+            if (idx < owners.length - 1) {
+                // -1 to not include the owner of tx that has already been added
                 owners[idx] = otherOwners[idx]; //Copy owners into the new array
             }
 
-            if (userAccounts[owners[idx]].length > 2)  {//Already initialized therefore valid
+            if (userAccounts[owners[idx]].length > 2) {
+                //Already initialized therefore valid
                 revert("User cannot have more than 3 accounts.");
             }
             userAccounts[owners[idx]].push(id);
@@ -96,11 +108,25 @@ contract BankAccount {
         accounts[id].owners = owners;
         nextAccountId++;
         emit AccountCreated(owners, id, block.timestamp);
-
-        
     }
 
-    function requestWithdawl(uint accountId, uint amount) external {}
+    //Used to creat a request for funds from an account for which msg.sender is an owner of
+    //Must fill in the fields in the requestWithdrawl struct and add it into the account struct
+    function requestWithdawl(
+        uint accountId,
+        uint amount
+    ) external accountOwner(accountId) sufficientBalance(accountId, amount){
+        uint id = nextWithdrawId;
+        //Create Ref to WithdrawRequest struct and using 'storage' so that it will modify the account struct
+        //Store in the account assoc. w/the accountId in the mapping of withdraw requests
+        WithdrawRequest storage request = accounts[accountId].withdrawRequests[
+            id
+        ];
+        request.user = msg.sender;
+        nextWithdrawId++;
+        request.amount = amount;
+        emit WithdrawRequested(msg.sender, accountId, id, amount, block.timestamp);
+    }
 
     function approveWithdrawl(uint accountId, uint withdrawId) external {}
 
@@ -114,7 +140,10 @@ contract BankAccount {
     function getOwners(uint accountId) public view returns (address[] memory) {}
 
     //Get the number of approvals for a specified withdraw request
-    function getApprovals(uint accountId, uint withdrawId) public view returns (uint) {}
+    function getApprovals(
+        uint accountId,
+        uint withdrawId
+    ) public view returns (uint) {}
 
     function getAccounts() public view returns (uint[] memory) {}
 }
