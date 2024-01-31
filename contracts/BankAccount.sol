@@ -187,7 +187,7 @@ contract BankAccount {
     function withdraw(uint accountId, uint withdrawId) external  {
         //Must check sufficient balance in account as seperate req. can be made and approved by other owners
         uint amount = accounts[accountId].withdrawRequests[withdrawId].amount;
-        require(accounts[accountId].balance >= amount, "Insufficient funds.");
+        require(getBalance(accountId) >= amount, "Insufficient funds.");
 
         //For security reasons, imp. to subtract amount before using call method.
         accounts[accountId].balance -= amount;
@@ -201,16 +201,24 @@ contract BankAccount {
     }
 
     //Public so one can get the balance within the smart contract as well
-    function getBalance(uint accountId) public view returns (uint) {}
+    function getBalance(uint accountId) public view returns (uint) {
+        return accounts[accountId].balance;
+    }
 
     //Get all the owners of a specified account
-    function getOwners(uint accountId) public view returns (address[] memory) {}
+    function getOwners(uint accountId) public view returns (address[] memory) {
+        return accounts[accountId].owners;
+    }
 
     //Get the number of approvals for a specified withdraw request
     function getApprovals(
         uint accountId,
         uint withdrawId
-    ) public view returns (uint) {}
+    ) public view returns (uint) {
+        return accounts[accountId].withdrawRequests[withdrawId].approvals;
+    }
 
-    function getAccounts() public view returns (uint[] memory) {}
+    function getAccounts() public view returns (uint[] memory) {
+        return userAccounts[msg.sender];
+    }
 }
