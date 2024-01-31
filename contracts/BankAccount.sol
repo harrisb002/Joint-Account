@@ -44,10 +44,61 @@ contract BankAccount {
     uint nextAccountId;
     uint nextWithdrawId; 
 
-    function deposit(uint accountId) external payable {}
+    //Must loop through the owners of the account to see if current Id is an owner of account
+    modifier accountOwner(uint accountId) {
+        bool isOwner; 
+        for (uint idx; idx < accounts[accountId].owners.length; idx++) {
+            if (accounts[accountId].owners[idx] == msg.sender) { //Check if the person sending the tx is an owner
+                isOwner = true;
+                break;
+            }
+        }
+        require(isOwner, "This address is not an owner of this account");
+        _;
+    }
+
+    modifier validOwners(address[] calldata owners) {
+        require(owners.length + 1 <= 4); //Other owners that is passed not including the owner of the current tx
+        //Check for duplicated owners inside the array
+        for (uint i; i < owners.length; i++) {
+            for (uint j = i + 1; j < owners.length; j++) {
+                if (owners[i] == owners[j]) {
+                    revert("Duplicate owners not allowed");
+                }
+            }
+        }
+        _;
+    }
+
+    function deposit(uint accountId) external payable {
+        accounts[accountId].balance += msg.value; //Allow the user to make the deposit 
+    }
 
     //The person who calls this is by default an owner (Hence otherOwners)
-    function createAccount(address[] calldata otherOwners) external {}
+    //Limit of 3 accounts for each owner (Flaws cause others can add you to other accounts)
+    function createAccount(address[] calldata otherOwners) external {
+        address[] memory owners = new address[](otherOwners.length + 1); //Create an array with all owners (Plus the one creating the tx)
+        owners[otherOwners.length] = msg.sender; //Make the owner of the tx the last element of the array
+        
+        uint id = nextAccountId; 
+
+        //Loop through and make sure no-one has 3 accounts already (revert if so)
+        for (uint idx; idx < owners.length; idx++) {
+            if (idx < owners.length - 1) { // -1 to not include the owner of tx that has already been added
+                owners[idx] = otherOwners[idx]; //Copy owners into the new array
+            }
+
+            if (userAccounts[owners[idx]].length > 2)  {//Already initialized therefore valid
+                revert("User cannot have more than 3 accounts.");
+            }
+            userAccounts[owners[idx]].push(id);
+        }
+        accounts[id].owners = owners;
+        nextAccountId++;
+        emit AccountCreated(owners, id, block.timestamp);
+
+        
+    }
 
     function requestWithdawl(uint accountId, uint amount) external {}
 
