@@ -1,3 +1,4 @@
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 /*
@@ -85,11 +86,11 @@ contract BankAccount {
     modifier canApprove(uint accountId, uint withdrawId) {
         require(
             accounts[accountId].withdrawRequests[withdrawId].user != msg.sender,
-            "Request has already been approved."
+            "Not permitted to approve this request."
         );
         require(
-            !accounts[accountId].withdrawRequest[withdrawId].approve,
-            "Not permitted to approve this request."
+            !accounts[accountId].withdrawRequests[withdrawId].approved,
+            "Request has already been approved."
         );
         require(
             accounts[accountId].withdrawRequests[withdrawId].user != address(0),
@@ -98,7 +99,7 @@ contract BankAccount {
         require(
             !accounts[accountId].withdrawRequests[withdrawId].ownersApproved[
                 msg.sender
-            ] != msg.sender,
+            ],
             "You've approved this request already."
         );
         _;
@@ -107,7 +108,8 @@ contract BankAccount {
     //Prerequisites to withdraw from a given account and withdraw request
     modifier canWithdraw(uint accountId, uint withdrawId) {
         require(accounts[accountId].withdrawRequests[withdrawId].user == msg.sender, "You are not the owner of this request.");
-        require(accounts[accountId].withdrawRequests[withdrawId].approved == msg.sender, "This request has not been approved by all owners.");
+        require(accounts[accountId].withdrawRequests[withdrawId].approved, "This request has not been approved by all owners.");
+        _;
     }
 
     function deposit(uint accountId) external payable accountOwner(accountId) {
@@ -118,7 +120,7 @@ contract BankAccount {
     //Limit of 3 accounts for each owner (Flaws cause others can add you to other accounts)
     function createAccount(
         address[] calldata otherOwners
-    ) external validOwners(owners) {
+    ) external validOwners(otherOwners) {
         address[] memory owners = new address[](otherOwners.length + 1); //Create an array with all owners (Plus the one creating the tx)
         owners[otherOwners.length] = msg.sender; //Make the owner of the tx the last element of the array
 
