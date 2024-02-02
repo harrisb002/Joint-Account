@@ -4,30 +4,37 @@
 // You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
 // will compile your contracts, add the Hardhat Runtime Environment's members to the
 // global scope, and execute the script.
+
+//Deployment notes:
+// - Must run a local hardhat node that acts as the blockchain netword to interact with: 
+//     'npx hardhat node'
+// - Then with the node instance, keep running and in seperate terminal:
+//     `npx hardhat run --network localhost ./scripts/deploy.js`
+
 const hre = require("hardhat");
 const fs = require("fs/promises");
 
 async function main() {
-  const BankAccount = await hre.ethers.getContractFactory("BankAccount");
-  const bankAccount = await BankAccount.deploy(); //Constructor arguements are params
+  const BankAccount = await hre.ethers.deployContract("BankAccount");
+  const bankAccount = await BankAccount.waitForDeployment();
 
-  await bankAccount.deployed(); //Deploy the contract and await for it to be deployed
-  await writeDeploymentInfo(bankAccount)
+  console.log(bankAccount);
+  await writeDeploymentInfo(bankAccount);
 }
 
-//Helper function to write out the ABI Application Binary Interface to interact with
 async function writeDeploymentInfo(contract) {
   const data = {
     contract: {
-      address: contract.address, //Address the contract us deployed with
-      signerAddress: contract.signer.address, //The account address that deployed this
-      abi: contract.interface.format(), //Formatted abi that is easy to work with
+      address: contract.target,  // represents the contract address named 'target'
+      signerAddress: contract.runner.address,  // Use 'runner.address' instead of 'signer.address' 
+      abi: contract.interface.format(),
     },
   };
 
-  const content = JSON.stringify(data, null, 2); // 2 spaces of indetation level of the content
-  await FileSystem.writeFile("deployment.json", content, { encoding: "utf-8" }); //Write the ABI to a JSON file to interact with
+  const content = JSON.stringify(data, null, 2);
+  await fs.writeFile("deployment.json", content, { encoding: "utf-8" });
 }
+
 
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
