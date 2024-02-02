@@ -110,8 +110,14 @@ contract BankAccount {
 
     //Prerequisites to withdraw from a given account and withdraw request
     modifier canWithdraw(uint accountId, uint withdrawId) {
-        require(accounts[accountId].withdrawRequests[withdrawId].user == msg.sender, "You are not the owner of this request.");
-        require(accounts[accountId].withdrawRequests[withdrawId].approved, "This request has not been approved by all owners.");
+        require(
+            accounts[accountId].withdrawRequests[withdrawId].user == msg.sender,
+            "You are not the owner of this request."
+        );
+        require(
+            accounts[accountId].withdrawRequests[withdrawId].approved,
+            "This request has not been approved by all owners."
+        );
         _;
     }
 
@@ -174,7 +180,7 @@ contract BankAccount {
     function approveWithdrawl(
         uint accountId,
         uint withdrawId
-    ) external accountOwner(accountId) canApprove(accountId, withdrawId){
+    ) external accountOwner(accountId) canApprove(accountId, withdrawId) {
         WithdrawRequest storage request = accounts[accountId].withdrawRequests[
             withdrawId
         ];
@@ -189,7 +195,7 @@ contract BankAccount {
     }
 
     //Once approved then will be allowed to withdrawl funds
-    function withdraw(uint accountId, uint withdrawId) external  {
+    function withdraw(uint accountId, uint withdrawId) external canWithdraw(accountId, withdrawId) {
         //Must check sufficient balance in account as seperate req. can be made and approved by other owners
         uint amount = accounts[accountId].withdrawRequests[withdrawId].amount;
         require(getBalance(accountId) >= amount, "Insufficient funds.");
