@@ -64,6 +64,9 @@ contract BankAccount {
         require(owners.length + 1 <= 4); //Other owners that is passed not including the owner of the current tx
         //Check for duplicated owners inside the array
         for (uint i; i < owners.length; i++) {
+            if (owners[i] == msg.sender) {
+                revert("No duplicate owners"); //Make sure the owner of the current tx is not a valid owner
+            }
             for (uint j = i + 1; j < owners.length; j++) {
                 if (owners[i] == owners[j]) {
                     revert("Duplicate owners not allowed");

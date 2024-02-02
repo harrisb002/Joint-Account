@@ -8,10 +8,9 @@ const { expect } = require("chai");
 
 describe("BankAccount", function () {
   async function deployBankAccount() {
-
     // Contracts are deployed using the first signer/account by default
     // Can get the different accounts to use to sign tx's
-    const [address0, address1, address3, address4] = await ethers.getSigners(); 
+    const [addr0, addr1, addr2, addr3, addr4] = await ethers.getSigners();
 
     //Automatically gets BankAccount from the contract directory defined in folder
     const BankAccount = await ethers.getContractFactory("BankAccount");
@@ -20,15 +19,151 @@ describe("BankAccount", function () {
     const bankAccount = await BankAccount.deploy();
 
     //All the address that can be used to connect to instance and smart contract
-    return { bankAccount, address0, address1, address3, address4};
+    return { bankAccount, addr0, addr1, addr2, addr3, addr4 };
   }
 
-  //Block tests using the subheaders through describes
+  /*
+    Allows for an easy way to create contracts to then be used for testing upon
+    Used in: Depositing test case.
+  */
+  async function deployBankAccountWithAccounts(
+    owners = 1,
+    deposit = 0,
+    withdrawlAmounts = []
+  ) {
+    const { bankAccount, addr0, addr1, addr2, addr3, addr4 } = await loadFixture(
+      deployBankAccount
+    ); //Use the function to load the bank account
+    //Now create an account with the specified number of owners
+    let addresses = [];
+    if (owners == 2) {
+      addresses = [addr1.address];
+    } else if (owners == 3) {
+      addresses = [addr1.address, addr2.address];
+    } else if (owners == 4) {
+      addresses = [addr1.address, addr2.address, addr3.address];
+    }
+    //Now call contract to create account with owners
+    //First account Id will be zero, so if a deposit value is > 0
+    await bankAccount.connect(addr0).createAccount(addresses);
+    //Must deposit to an account number, using the account created above (i.e. 0)
+    if (deposit > 0) {
+      await bankAccount
+        .connect(addr0)
+        .deposit(0, { value: deposit.toString() }); //Deposits in Wei amount as a string
+    }
 
-  //Make sure the contract can deploy successfully
+    //Loop through the array of numbers representing the amounts requesting to be withdrawn from account
+    //Make a request for each of these amounts to account 0, address 0 will always be one of the owners of this account
+    for (const withdrawlAmount of withdrawlAmounts) {
+      await bankAccount.connect(addr0).requestWithdrawl(0, withdrawlAmount);
+    }
+    return { bankAccount, addr0, addr1, addr2, addr3, addr4 };
+  }
+  /*
+  IMPORTANT NOTES: 
+  - Each contract is fresh and thus the tests state is independent of one another
+  - Block tests using the subheaders through describes
+*/
+  // - Make sure the contract can deploy successfully
   describe("Deployment", () => {
     it("Should deploy without error", async () => {
-      await loadFixture(deployBankAccount) //Will call if not called before or
-    })
-  })
+      await loadFixture(deployBankAccount); //Will call if not called before or just return the cached addresses
+    });
+  });
+  /*
+  Can fail valid owners, or owner laready has multiple accounts
+  Will test all these cases in this describe block
+  WIll be used to test:
+   1) CAN create an account with 1, 2, 3 owners
+   2) CANNOT create account with duplicate owners
+   3) CANNOT create account with more than 5 owners
+*/
+  describe("Creating an account", () => {
+    it("Should allow creating a single user account", async () => {
+      const { bankAccount, addr0 } = await loadFixture(deployBankAccount);
+      //Using the instance of the smart contract, I will use it to tr and create an account
+      await bankAccount.connect(addr0).createAccount([]); //Will pass the object/s if necessary in params
+      const accounts = await bankAccount.connect(addr0).getAccounts(); //Get the number of accounts
+      expect(accounts.length).to.equal(1); //Should be equal to one after creating an owner
+    });
+    it("Should allow creating a double user account", async () => {
+      const { bankAccount, addr0, addr1 } = await loadFixture(
+        deployBankAccount
+      );
+      await bankAccount.connect(addr0).createAccount([addr1]);
+      const accounts1 = await bankAccount.connect(addr0).getAccounts(); //Get the number of accounts for addr0
+      expect(accounts1.length).to.equal(1); //Should be equal to 1 after creating an owner
+      const accounts2 = await bankAccount.connect(addr1).getAccounts(); //Get the number of accounts
+      expect(accounts2.length).to.equal(1); //Should be equal to 1 after creating an owner
+    });
+    it("Should allow creating a triple user account", async () => {
+      const { bankAccount, addr0, addr1, addr2 } = await loadFixture(
+        deployBankAccount
+      );
+      await bankAccount.connect(addr0).createAccount([addr1, addr2]);
+      const accounts1 = await bankAccount.connect(addr0).getAccounts();
+      expect(accounts1.length).to.equal(1);
+      const accounts2 = await bankAccount.connect(addr1).getAccounts();
+      expect(accounts2.length).to.equal(1);
+      const accounts3 = await bankAccount.connect(addr2).getAccounts();
+      expect(accounts3.length).to.equal(1);
+    });
+    it("Should allow creating a quad user account", async () => {
+      const { bankAccount, addr0, addr1, addr2, addr3 } = await loadFixture(
+        deployBankAccount
+      );
+      await bankAccount.connect(addr0).createAccount([addr1, addr2, addr3]);
+      const accounts1 = await bankAccount.connect(addr0).getAccounts();
+      expect(accounts1.length).to.equal(1);
+      const accounts2 = await bankAccount.connect(addr1).getAccounts();
+      expect(accounts2.length).to.equal(1);
+      const accounts3 = await bankAccount.connect(addr2).getAccounts();
+      expect(accounts3.length).to.equal(1);
+      const accounts4 = await bankAccount.connect(addr3).getAccounts();
+      expect(accounts4.length).to.equal(1);
+    });
+    /*
+    TESTING FOR FAILURE
+*/
+    it("Should not allow creating account with duplicate owners", async () => {
+      const { bankAccount, addr0 } = await loadFixture(deployBankAccount);
+      expect(bankAccount.connect(addr0).createAccount([addr0])).to.be.reverted;
+    });
+    it("Should not allow creating account with 5 owners", async () => {
+      const { bankAccount, addr0, addr1, addr2, addr3, addr4 } =
+        await loadFixture(deployBankAccount);
+      expect(
+        bankAccount.connect(addr0).createAccount([addr1, addr2, addr3, addr4])
+      ).to.be.reverted;
+    });
+    it("Should not allow creating account with 5 owners", async () => {
+      const { bankAccount, addr0 } = await loadFixture(deployBankAccount);
+      for (let idx = 0; idx < 3; idx++) {
+        await bankAccount.connect(addr0).createAccount([]);
+      }
+
+      expect(bankAccount.connect(addr0).createAccount([])).to.be.reverted; //Should fail after creating 5th owner
+    });
+  });
+
+  /*
+    TESTING FOR DEPOSITING
+*/
+  describe("Depositing", () => {
+    it("Should allow deposit from account owner", async () => {
+      const { bankAccount, addr0 } = await deployBankAccountWithAccounts(1);
+      
+      //Checking if the balance of the smart contract and the account change after deposit
+      //changeEtherBalances(): Check that the etheruem balances of mutliple accounts changed by the value passed as param
+      await expect(
+        bankAccount.connect(addr0).deposit(0, { value: "100" })
+      ).to.changeEtherBalances([bankAccount, addr0], ["100", "-100"]);
+    });
+    it("Should NOT allow deposit from non-account owner", async () => {
+      const { bankAccount, addr1 } = await deployBankAccountWithAccounts(1);
+      await expect(bankAccount.connect(addr1).deposit(0, { value: "100" })).to
+        .be.reverted;
+    });
+  });
 });
