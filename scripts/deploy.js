@@ -5,9 +5,28 @@
 // will compile your contracts, add the Hardhat Runtime Environment's members to the
 // global scope, and execute the script.
 const hre = require("hardhat");
+const fs = require("fs/promises");
 
 async function main() {
-  
+  const BankAccount = await hre.ethers.getContractFactory("BankAccount");
+  const bankAccount = await BankAccount.deploy(); //Constructor arguements are params
+
+  await bankAccount.deployed(); //Deploy the contract and await for it to be deployed
+  await writeDeploymentInfo(bankAccount)
+}
+
+//Helper function to write out the ABI Application Binary Interface to interact with
+async function writeDeploymentInfo(contract) {
+  const data = {
+    contract: {
+      address: contract.address, //Address the contract us deployed with
+      signerAddress: contract.signer.address, //The account address that deployed this
+      abi: contract.interface.format(), //Formatted abi that is easy to work with
+    },
+  };
+
+  const content = JSON.stringify(data, null, 2); // 2 spaces of indetation level of the content
+  await FileSystem.writeFile("deployment.json", content, { encoding: "utf-8" }); //Write the ABI to a JSON file to interact with
 }
 
 // We recommend this pattern to be able to use async/await everywhere
