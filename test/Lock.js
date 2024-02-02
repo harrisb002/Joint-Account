@@ -31,9 +31,8 @@ describe("BankAccount", function () {
     deposit = 0,
     withdrawlAmounts = []
   ) {
-    const { bankAccount, addr0, addr1, addr2, addr3, addr4 } = await loadFixture(
-      deployBankAccount
-    ); //Use the function to load the bank account
+    const { bankAccount, addr0, addr1, addr2, addr3, addr4 } =
+      await loadFixture(deployBankAccount); //Use the function to load the bank account
     //Now create an account with the specified number of owners
     let addresses = [];
     if (owners == 2) {
@@ -153,7 +152,7 @@ describe("BankAccount", function () {
   describe("Depositing", () => {
     it("Should allow deposit from account owner", async () => {
       const { bankAccount, addr0 } = await deployBankAccountWithAccounts(1);
-      
+
       //Checking if the balance of the smart contract and the account change after deposit
       //changeEtherBalances(): Check that the etheruem balances of mutliple accounts changed by the value passed as param
       await expect(
@@ -164,6 +163,63 @@ describe("BankAccount", function () {
       const { bankAccount, addr1 } = await deployBankAccountWithAccounts(1);
       await expect(bankAccount.connect(addr1).deposit(0, { value: "100" })).to
         .be.reverted;
+    });
+  });
+
+  describe("Withdraw", () => {
+    describe("Request a Withdrawl", () => {
+      it("Account owner can request a withdrawl", async () => {
+        //Deploy a bankAccount with one owner and that has a balance of 100 (to be deposited)
+        const { bankAccount, addr0 } = await deployBankAccountWithAccounts(
+          1,
+          100
+        );
+        //Must be successfull and no expects are needed since if it is reverted the test case will automatically fail
+        await bankAccount.connect(addr0).requestWithdrawl(0, 100); //Try to withdraw the funds
+      });
+
+      it("Account owner can not request withdraw with invalid amount", async () => {
+        const { bankAccount, addr0 } = await deployBankAccountWithAccounts(
+          1,
+          100
+        );
+        await expect(bankAccount.connect(addr0).requestWithdrawl(0, 101)).to.be
+          .reverted;
+      });
+
+      it("Non-account owner cannot request withdraw", async () => {
+        const { bankAccount, addr1 } = await deployBankAccountWithAccounts(
+          1,
+          100
+        );
+        await expect(bankAccount.connect(addr1).requestWithdrawl(0, 90)).to.be
+          .reverted; //Owner is addr1 while request is from addr0
+      });
+
+      it("User can make multiple withdrawls", async () => {
+        const { bankAccount, addr0 } = await deployBankAccountWithAccounts(
+          1,
+          100
+        );
+        await bankAccount.connect(addr0).requestWithdrawl(0, 90);
+        await bankAccount.connect(addr0).requestWithdrawl(0, 100);
+      });
+    });
+
+    describe("Approve a Withdraw", () => {
+      it("Should allow an account owner to approve withdraw", async () => {
+        const { bankAccount, addr1 } = await deployBankAccountWithAccounts(
+          2,
+          100, 
+          [100] //Request a withdraw in the function
+        );
+        //Connecting to account 1 (Not the creator which is 0) but also an owner
+        await bankAccount.connect(addr1).approveWithdrawl(0, 0);
+        //Important Note: 
+        // When awiting when somthing is reverted or not, 'await' goes on the outside of the expect
+        // When awiting the value of something (such as below), 'await' goes on the inside of the expect
+        expect(await bankAccount.connect(addr1).getApprovals(0,0)).to.equal(1);
+      });
     });
   });
 });

@@ -149,7 +149,7 @@ contract BankAccount {
 
     //Used to creat a request for funds from an account for which msg.sender is an owner of
     //Must fill in the fields in the requestWithdrawl struct and add it into the account struct
-    function requestWithdawl(
+    function requestWithdrawl(
         uint accountId,
         uint amount
     ) external accountOwner(accountId) sufficientBalance(accountId, amount) {
