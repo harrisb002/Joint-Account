@@ -103,7 +103,7 @@ contract BankAccount {
             !accounts[accountId].withdrawRequests[withdrawId].ownersApproved[
                 msg.sender
             ],
-            "You've approved this request already."
+            "You have approved this request already."
         );
         _;
     }
